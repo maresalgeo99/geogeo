@@ -68,26 +68,28 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           COMMENT="# Auto-update: $TIMESTAMP"
 
-          # Build new file content
           if [ -f geo.py ]; then
             NEW_CONTENT=$(printf '%s\n' "$COMMENT" | cat - geo.py | base64 -w 0)
           else
             NEW_CONTENT=$(printf '%s\n' "$COMMENT" | base64 -w 0)
           fi
 
-          # Get current file SHA
           SHA=$(gh api repos/${{ github.repository }}/contents/geo.py \
             --jq '.sha' 2>/dev/null || echo "")
 
-          if [ -n "$SHA" ]; then
-            gh api repos/${{ github.repository }}/contents/geo.py \
-              --method PUT \
-              --field message="Update geo.py" \
-              --field content="$NEW_CONTENT" \
-              --field sha="$SHA"
-          else
-            gh api repos/${{ github.repository }}/contents/geo.py \
-              --method PUT \
-              --field message="Update geo.py" \
-              --field content="$NEW_CONTENT"
-          fi
+          # Build JSON manually to include committer info
+          JSON=$(jq -n \
+            --arg msg "🌍 Daily geo.py update - $TIMESTAMP" \
+            --arg content "$NEW_CONTENT" \
+            --arg sha "$SHA" \
+            --arg name "maresalgeo99" \
+            --arg email "271218384+maresalgeo99@users.noreply.github.com" \
+            '{
+              message: $msg,
+              content: $content,
+              committer: { name: $name, email: $email }
+            } + (if $sha != "" then { sha: $sha } else {} end)')
+
+          gh api repos/${{ github.repository }}/contents/geo.py \
+            --method PUT \
+            --input - <<< "$JSON"
