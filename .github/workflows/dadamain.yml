@@ -58,21 +58,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Add comment to geo.py and commit
+      - name: Add comment to geo.py and commit (API method)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           COMMENT="# Auto-update: $TIMESTAMP"
 
+          # Prepare new file content
           if [ -f geo.py ]; then
-            # Prepend the comment line to the top of the file
-            echo "$COMMENT" | cat - geo.py > temp && mv temp geo.py
+            NEW_CONTENT=$(printf '%s\n' "$COMMENT" | cat - geo.py | base64 -w 0)
           else
-            # Create the file if it doesn't exist
-            echo "$COMMENT" > geo.py
+            NEW_CONTENT=$(printf '%s\n' "$COMMENT" | base64 -w 0)
           fi
 
-          git config user.name "maresalgeo99"
-          git config user.email "maresalgeo99@users.noreply.github.com"
-          git add geo.py
-          git commit -m "Update geo.py"
-          git push
+          # Get current file SHA (needed for update)
+          SHA=$(gh api repos/${{ github.repository }}/contents/geo.py \
+            --jq '.sha' 2>/dev/null || echo "")
+
+          if [ -n "$SHA" ]; then
+            # Update existing file
+            gh api repos/${{ github.repository }}/contents/geo.py \
+              --method PUT \
+              --field message="🌍 Daily geo.py update - $TIMESTAMP" \
+              --field content="$NEW_CONTENT" \
+              --field sha="$SHA"
+          else
+            # Create new file
+            gh api repos/${{ github.repository }}/contents/geo.py \
+              --method PUT \
+              --field message="🌍 Daily geo.py update - $TIMESTAMP" \
+              --field content="$NEW_CONTENT"
+          fi
