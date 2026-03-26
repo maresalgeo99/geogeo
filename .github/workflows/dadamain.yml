@@ -50,7 +50,9 @@ jobs:
 
   commit:
     needs: pick-hour
-    if: needs.pick-hour.outputs.should_run == 'true'
+    if: >
+      needs.pick-hour.outputs.should_run == 'true' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
