@@ -61,35 +61,35 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Add comment to geo.py and commit
+      - name: Add comment to geo.py and commit (API method)
         env:
-          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           COMMENT="# Auto-update: $TIMESTAMP"
 
+          # Prepare new file content
           if [ -f geo.py ]; then
             NEW_CONTENT=$(printf '%s\n' "$COMMENT" | cat - geo.py | base64 -w 0)
           else
             NEW_CONTENT=$(printf '%s\n' "$COMMENT" | base64 -w 0)
           fi
 
+          # Get current file SHA (needed for update)
           SHA=$(gh api repos/${{ github.repository }}/contents/geo.py \
             --jq '.sha' 2>/dev/null || echo "")
 
-          # Build JSON manually to include committer info
-          JSON=$(jq -n \
-            --arg msg "Update geo.py" \
-            --arg content "$NEW_CONTENT" \
-            --arg sha "$SHA" \
-            --arg name "maresalgeo99" \
-            --arg email "271218384+maresalgeo99@users.noreply.github.com" \
-            '{
-              message: $msg,
-              content: $content,
-              committer: { name: $name, email: $email }
-            } + (if $sha != "" then { sha: $sha } else {} end)')
-
-          gh api repos/${{ github.repository }}/contents/geo.py \
-            --method PUT \
-            --input - <<< "$JSON"
+          if [ -n "$SHA" ]; then
+            # Update existing file
+            gh api repos/${{ github.repository }}/contents/geo.py \
+              --method PUT \
+              --field message="🌍 Daily geo.py update - $TIMESTAMP" \
+              --field content="$NEW_CONTENT" \
+              --field sha="$SHA"
+          else
+            # Create new file
+            gh api repos/${{ github.repository }}/contents/geo.py \
+              --method PUT \
+              --field message="🌍 Daily geo.py update - $TIMESTAMP" \
+              --field content="$NEW_CONTENT"
+          fi
