@@ -79,7 +79,7 @@ jobs:
 
           # Build JSON manually to include committer info
           JSON=$(jq -n \
-            --arg msg "🌍 Daily geo.py update - $TIMESTAMP" \
+            --arg msg "Update geo.py" \
             --arg content "$NEW_CONTENT" \
             --arg sha "$SHA" \
             --arg name "maresalgeo99" \
