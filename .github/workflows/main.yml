@@ -145,7 +145,7 @@ jobs:
         sleep 5
 
         echo "── Connection status ──"
-        sudo warp-cli status
+        sudo warp-cli --accept-tos status
       shell: bash
 
     - name: 🔒 Verify WARP tunnel
