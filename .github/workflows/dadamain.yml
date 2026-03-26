@@ -1,0 +1,76 @@
+name: Daily Commit
+
+on:
+  schedule:
+    # Runs at minute 0 of every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pick-hour:
+    runs-on: ubuntu-latest
+    outputs:
+      target_hour: ${{ steps.decide.outputs.target_hour }}
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Decide target hour and check if now is the time
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_HOUR=$(date -u +%-H)
+
+          # At midnight (hour 0), pick a new random hour for today
+          if [ "$CURRENT_HOUR" -eq 0 ]; then
+            RANDOM_HOUR=$(shuf -i 0-23 -n 1)
+            # Store it as a repo variable for the rest of the day
+            gh variable set DAILY_RANDOM_HOUR \
+              --body "$RANDOM_HOUR" \
+              --repo ${{ github.repository }}
+            echo "Picked new random hour: $RANDOM_HOUR"
+            TARGET_HOUR=$RANDOM_HOUR
+          else
+            # Fetch the previously chosen hour
+            TARGET_HOUR=$(gh variable get DAILY_RANDOM_HOUR \
+              --repo ${{ github.repository }} 2>/dev/null || echo "-1")
+          fi
+
+          echo "target_hour=$TARGET_HOUR" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT_HOUR" -eq "$TARGET_HOUR" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Current hour ($CURRENT_HOUR) matches target ($TARGET_HOUR). Committing!"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Current hour ($CURRENT_HOUR) != target ($TARGET_HOUR). Skipping."
+          fi
+
+  commit:
+    needs: pick-hour
+    if: needs.pick-hour.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Add comment to geo.py and commit
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          COMMENT="# Auto-update: $TIMESTAMP"
+
+          if [ -f geo.py ]; then
+            # Prepend the comment line to the top of the file
+            echo "$COMMENT" | cat - geo.py > temp && mv temp geo.py
+          else
+            # Create the file if it doesn't exist
+            echo "$COMMENT" > geo.py
+          fi
+
+          git config user.name "maresalgeo99"
+          git config user.email "maresalgeo99@users.noreply.github.com"
+          git add geo.py
+          git commit -m "Update geo.py"
+          git push
