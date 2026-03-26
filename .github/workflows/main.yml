@@ -182,7 +182,7 @@ jobs:
 
         echo ""
         echo "✅ Python packages installed"
-        pip list --format=columns | head -30
+        pip list --format=columns 2>/dev/null | head -30 || true
       shell: bash
 
     - name: 🔧 Install chromedriver (SeleniumBase)
